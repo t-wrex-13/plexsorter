@@ -1,0 +1,5 @@
+FLASK_APP=plexsorter.py
+PLEX_BASEURL=http://75.71.105.177:13703
+PLEX_TOKEN=d6CsVMZuBxQzwxKLws1k
+ADMIN_USERNAME=travis.hughes.13@gmail.com
+ADMIN_PASSWORD=FRE19uc7A*

@@ -1,0 +1,15 @@
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+from config import Config
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+
+app = Flask(__name__)
+app.config.from_object(Config)
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+
+from app import routes, models
+
+@app.context_processor
+def inject_user_model():
+    return dict(User=models.User)

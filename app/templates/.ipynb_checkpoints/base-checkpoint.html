@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en" class="light"> <!-- Default to light mode, JS will check local storage -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Plex Admin</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Libertinus Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Libertinus+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Libertinus Sans', sans-serif;
+            transition: background-color 0.3s ease;
+            font-size: 1.125rem; /* Base font size increased (text-lg equivalent) */
+        }
+        /* Base styles for light mode */
+        html.light body {
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        html.light .bg-white { background-color: #ffffff; }
+        html.light .shadow-md { box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        html.light .bg-gray-100 { background-color: #f1f5f9; }
+        html.light .text-gray-700 { color: #334155; }
+        html.light .text-gray-600 { color: #475569; }
+        html.light .border-gray-200 { border-color: #e2e8f0; }
+        html.light .bg-gray-50 { background-color: #f8fafc; }
+
+        /* Styles for dark mode (applied when 'dark' class is on html) */
+        html.dark body {
+            background-color: #0f172a;
+            color: #f1f5f9;
+        }
+        html.dark .bg-white { background-color: #1e293b; }
+        html.dark .shadow-md { box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3); }
+        html.dark .bg-gray-100 { background-color: #334155; }
+        html.dark .text-gray-700 { color: #cbd5e1; }
+        html.dark .text-gray-600 { color: #94a3b8; }
+        html.dark .border-gray-200 { border-color: #334155; }
+        html.dark .bg-gray-50 { background-color: #1e293b; }
+
+
+        /* Flash message styling */
+        .flash-message {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .flash-message .icon {
+            font-size: 1.25rem;
+        }
+        .flash-message.success { background-color: #d1fae5; color: #065f46; border: 1px solid #34d399; }
+        .flash-message.danger { background-color: #fee2e2; color: #991b1b; border: 1px solid #ef4444; }
+        .flash-message.warning { background-color: #fffbeb; color: #92400e; border: 1px solid #f59e0b; }
+        .flash-message.info { background-color: #dbeafe; color: #1e40af; border: 1px solid #60a5fa; }
+
+        /* Dark mode specific flash messages */
+        html.dark .flash-message.success { background-color: #14532d; color: #a7f3d0; border: 1px solid #34d399; }
+        html.dark .flash-message.danger { background-color: #7f1d1d; color: #fecaca; border: 1px solid #ef4444; }
+        html.dark .flash-message.warning { background-color: #78350f; color: #fde68a; border: 1px solid #fbbf24; }
+        html.dark .flash-message.info { background-color: #1e3a8a; color: #bfdbfe; border: 1px solid #60a5fa; }
+
+        /* Tooltip for hover info on content rows */
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            pointer-events: none; /* Allows mouse events to pass through */
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+            z-index: 100;
+            max-width: 300px;
+            text-align: left;
+        }
+        .tooltip.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="font-inter antialiased min-h-screen flex flex-col">
+    <nav class="bg-gray-800 p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="{{ url_for('dashboard') }}" class="text-white text-2xl font-bold">Plex Admin</a>
+            <div class="hidden md:flex space-x-4 items-center">
+                <button id="theme-toggle" class="p-2 rounded-full bg-gray-700 text-gray-300 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200">
+                    <!-- Sun icon for light mode, Moon icon for dark mode -->
+                    <svg id="sun-icon" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="display: none;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h1M3 12h1m15.325-4.757l-.707-.707M6.343 17.657l-.707-.707M16.95 6.343l.707-.707M7.05 16.95l.707.707M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <svg id="moon-icon" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="display: none;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                    </svg>
+                </button>
+                {% if session.logged_in %}
+                    <a href="{{ url_for('list_all_content') }}" class="text-gray-300 hover:text-white">All Content</a>
+                    <a href="{{ url_for('search_movies') }}" class="text-gray-300 hover:text-white">Search Movies</a>
+                    <a href="{{ url_for('now_playing') }}" class="text-gray-300 hover:text-white">Now Playing</a>
+                    <a href="{{ url_for('genre_distribution_page') }}" class="text-gray-300 hover:text-white">Genre Viz</a>
+                    <a href="{{ url_for('playtime_trends_page') }}" class="text-gray-300 hover:text-white">Playtime Viz</a>
+                    <!-- New link for admin or user profile -->
+                    {% set user = User.query.get(session['user_id']) %}
+                    {% if user and user.username == 'admin' %}
+                        <a href="{{ url_for('user_management') }}" class="text-gray-300 hover:text-white">Users</a>
+                    {% else %}
+                        <a href="{{ url_for('profile') }}" class="text-gray-300 hover:text-white">Profile</a>
+                    {% endif %}
+                    <a href="{{ url_for('logout') }}" class="text-red-400 hover:text-red-300">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="text-gray-300 hover:text-white">Login</a>
+                    <a href="{{ url_for('register') }}" class="text-gray-300 hover:text-white">Register</a>
+                {% endif %}
+            </div>
+
+            <!-- Mobile Menu Button -->
+            <button id="hamburger-menu" class="md:hidden text-gray-300 hover:text-white focus:outline-none">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Mobile Menu (Hidden by default) -->
+        <div id="mobile-menu" class="hidden md:hidden mt-4">
+            <div class="flex flex-col space-y-2">
+                {% if session.logged_in %}
+                    <a href="{{ url_for('list_all_content') }}" class="text-gray-300 hover:text-white py-2 px-3">All Content</a>
+                    <a href="{{ url_for('search_movies') }}" class="text-gray-300 hover:text-white py-2 px-3">Search Movies</a>
+                    <a href="{{ url_for('now_playing') }}" class="text-gray-300 hover:text-white py-2 px-3">Now Playing</a>
+                    <a href="{{ url_for('genre_distribution_page') }}" class="text-gray-300 hover:text-white py-2 px-3">Genre Viz</a>
+                    <a href="{{ url_for('playtime_trends_page') }}" class="text-gray-300 hover:text-white py-2 px-3">Playtime Viz</a>
+                    {% set user = User.query.get(session['user_id']) %}
+                    {% if user and user.username == 'admin' %}
+                        <a href="{{ url_for('user_management') }}" class="text-gray-300 hover:text-white py-2 px-3">Users</a>
+                    {% else %}
+                        <a href="{{ url_for('profile') }}" class="text-gray-300 hover:text-white py-2 px-3">Profile</a>
+                    {% endif %}
+                    <a href="{{ url_for('logout') }}" class="text-red-400 hover:text-red-300 py-2 px-3">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="text-gray-300 hover:text-white py-2 px-3">Login</a>
+                    <a href="{{ url_for('register') }}" class="text-gray-300 hover:text-white py-2 px-3">Register</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto mt-8 p-4 flex-grow">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-4">
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">
+                            <span class="icon">
+                                {% if category == 'success' %}✅{% elif category == 'danger' %}❌{% elif category == 'warning' %}⚠️{% elif category == 'info' %}ℹ️{% endif %}
+                            </span>
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer class="bg-slate-800 dark:bg-gray-900 p-4 text-center text-gray-400 mt-8">
+        <p>&copy; 2024 Plex Admin App</p>
+    </footer>
+
+    <div id="tooltip" class="tooltip"></div> <!-- Tooltip element -->
+
+    <script>
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const htmlElement = document.documentElement; // This is the <html> tag
+        const sunIcon = document.getElementById('sun-icon');
+        const moonIcon = document.getElementById('moon-icon');
+        const tooltip = document.getElementById('tooltip');
+
+        // Function to set the theme and store in local storage
+        function setTheme(theme) {
+            if (theme === 'dark') {
+                htmlElement.classList.add('dark');
+                htmlElement.classList.remove('light');
+                sunIcon.style.display = 'block';
+                moonIcon.style.display = 'none';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                htmlElement.classList.remove('dark');
+                htmlElement.classList.add('light');
+                sunIcon.style.display = 'none';
+                moonIcon.style.display = 'block';
+                localStorage.setItem('theme', 'light');
+            }
+        }
+
+        // Check for saved theme preference on page load
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            setTheme(savedTheme);
+        } else {
+            // Default to light if no preference is saved
+            setTheme('light');
+        }
+
+        // Toggle theme on button click
+        themeToggleBtn.addEventListener('click', () => {
+            if (htmlElement.classList.contains('dark')) {
+                setTheme('light');
+            } else {
+                setTheme('dark');
+            }
+        });
+
+        // --- New: Hover functionality for content rows ---
+        // This script block should be placed after the table is rendered in content.html
+        // For now, we'll add a general listener that might need refinement in content.html itself.
+        document.addEventListener('mouseover', function(event) {
+            if (event.target.tagName === 'TD' && event.target.closest('tr')) {
+                const row = event.target.closest('tr');
+                const type = row.cells[0] ? row.cells[0].textContent : 'N/A';
+                const title = row.cells[1] ? row.cells[1].textContent : 'N/A';
+                const year = row.cells[2] ? row.cells[2].textContent : 'N/A';
+                const summary = row.cells[3] ? row.cells[3].textContent : 'No summary available.';
+
+                // Check if this is a content row (e.g., from the content.html table)
+                if (row.parentNode.tagName === 'TBODY' && row.parentNode.parentNode.id === 'content-table') {
+                    tooltip.innerHTML = `<strong>${title}</strong> (${year})<br><em>Type: ${type}</em><br>${summary}`;
+                    tooltip.style.left = (event.pageX + 10) + 'px';
+                    tooltip.style.top = (event.pageY + 10) + 'px';
+                    tooltip.classList.add('show');
+                }
+            }
+        });
+
+        document.addEventListener('mouseout', function(event) {
+            if (event.target.tagName === 'TD' && event.target.closest('tr')) {
+                tooltip.classList.remove('show');
+            }
+        });
+        // --- End New: Hover functionality ---
+        
+        const hamburgerBtn = document.getElementById('hamburger-menu');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        hamburgerBtn.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+        });
+    </script>
+</body>
+</html>

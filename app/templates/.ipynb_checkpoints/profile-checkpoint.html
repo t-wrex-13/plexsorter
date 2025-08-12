@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="bg-white p-8 rounded-lg shadow-md">
+    <h2 class="text-3xl font-bold mb-6 text-center">My Profile</h2>
+    {% if user %}
+    <div class="overflow-x-auto">
+        <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+            <thead>
+                <tr class="bg-gray-100 text-left text-gray-600 uppercase text-sm leading-normal">
+                    <th class="py-3 px-6 border-b border-gray-200">ID</th>
+                    <th class="py-3 px-6 border-b border-gray-200">Username</th>
+                    <th class="py-3 px-6 border-b border-gray-200">Plex URL</th>
+                    <th class="py-3 px-6 border-b border-gray-200">Plex Token</th>
+                </tr>
+            </thead>
+            <tbody class="text-gray-700 text-sm">
+                <tr class="border-b border-gray-200 hover:bg-gray-50">
+                    <td class="py-3 px-6">{{ user.id }}</td>
+                    <td class="py-3 px-6">{{ user.username }}</td>
+                    <td class="py-3 px-6 cursor-pointer" onclick="toggleToken(this)" data-token="{{ user.plex_baseurl }}">
+                        <span class="text-gray-500 hover:text-gray-700">Click to reveal</span>
+                    </td>
+                    <td class="py-3 px-6 cursor-pointer" onclick="toggleToken(this)" data-token="{{ user.plex_token }}">
+                        <span class="text-gray-500 hover:text-gray-700">Click to reveal</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-center text-gray-600">User not found or not logged in.</p>
+    {% endif %}
+</div>
+
+<script>
+function toggleToken(cell) {
+    const hiddenText = '••••••••••••••••••••••••••••••••••••••••••••••';
+    const token = cell.dataset.token;
+
+    if (cell.textContent.includes('Click to reveal')) {
+        cell.textContent = token;
+    } else {
+        cell.textContent = 'Click to reveal';
+    }
+}
+</script>
+{% endblock %}

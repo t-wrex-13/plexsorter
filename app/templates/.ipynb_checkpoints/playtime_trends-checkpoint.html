@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="bg-white p-8 rounded-lg shadow-md">
+    <h2 class="text-3xl font-bold mb-6 text-center">Top 20 Most Watched Shows by View Count</h2>
+    <div id="playtime-chart-container" class="flex justify-center">
+        <!-- D3.js chart will be rendered here -->
+    </div>
+    <p id="chart-status" class="text-center text-gray-600 mt-4">Loading chart data...</p>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chartContainer = d3.select("#playtime-chart-container");
+    const chartStatus = d3.select("#chart-status");
+    const margin = {top: 20, right: 30, bottom: 100, left: 80}; // Increased bottom margin for labels
+    const width = 800 - margin.left - margin.right;
+    const height = 500 - margin.top - margin.bottom;
+
+    const svg = chartContainer.append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    // Add X axis label
+    svg.append("text")
+        .attr("class", "x label")
+        .attr("text-anchor", "end")
+        .attr("x", width / 2 + margin.left / 2)
+        .attr("y", height + margin.bottom - 10)
+        .text("Content Title"); // Updated X-axis label
+
+    // Add Y axis label
+    svg.append("text")
+        .attr("class", "y label")
+        .attr("text-anchor", "end")
+        .attr("y", -margin.left + 20)
+        .attr("x", -height / 2)
+        .attr("transform", "rotate(-90)")
+        .text("Total Watch Count"); // Updated Y-axis label
+
+    fetch('/api/playtime_trends_data')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) {
+                chartStatus.text(`Error: ${data.error}`).style("color", "red");
+                return;
+            }
+            if (data.length === 0) {
+                chartStatus.text("No watch data available.").style("color", "orange"); // Updated message
+                return;
+            }
+
+            chartStatus.text(""); // Clear status message
+
+            // X axis
+            const x = d3.scaleBand()
+                .range([0, width])
+                .domain(data.map(d => d.show)) // Updated domain to use 'show'
+                .padding(0.2);
+            svg.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(x))
+                .selectAll("text")
+                .attr("transform", "translate(-10,0)rotate(-45)")
+                .style("text-anchor", "end");
+
+            // Y axis
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d.watch_count)]) // Updated domain to use watch_count
+                .range([height, 0]);
+            svg.append("g")
+                .call(d3.axisLeft(y));
+
+            // Bars
+            svg.selectAll("mybar")
+                .data(data)
+                .enter()
+                .append("rect")
+                .attr("x", d => x(d.show))
+                .attr("y", d => y(d.watch_count)) // Updated y position to use watch_count
+                .attr("width", x.bandwidth())
+                .attr("height", d => height - y(d.watch_count)) // Updated height to use watch_count
+                .attr("fill", "#a269b3");
+
+            // Optional: Add value labels on top of bars
+            svg.selectAll(".bar-label")
+                .data(data)
+                .enter().append("text")
+                .attr("class", "bar-label")
+                .attr("x", d => x(d.show) + x.bandwidth() / 2)
+                .attr("y", d => y(d.watch_count) - 5) // Position slightly above the bar
+                .attr("text-anchor", "middle")
+                .style("font-size", "10px")
+                .style("fill", "#666")
+                .text(d => d.watch_count); // Display raw count
+
+        })
+        .catch(error => {
+            chartStatus.text(`Failed to load chart data: ${error.message}`).style("color", "red");
+            console.error("Error fetching playtime distribution data:", error);
+        });
+});
+</script>
+{% endblock %}
