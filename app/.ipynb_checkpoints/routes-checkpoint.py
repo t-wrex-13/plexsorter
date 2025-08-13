@@ -16,7 +16,9 @@ def login_required(view):
             return redirect(url_for('login'))
         return view(*args, **kwargs)
     return wrapped_view
-    
+
+# This is the old method for connecting to PLEX - works fine if there's only a single user and no user accounts
+# The new method get_user_plex() is better for serving multiple users
 # try:
 #     plex = PlexServer(Config.PLEX_BASEURL, Config.PLEX_TOKEN)
 #     print("Successfully connected to Plex Media Server.")
@@ -42,11 +44,13 @@ def get_user_plex():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    user = User.query.get(session['user_id'])
     plex = get_user_plex()
     user_count = User.query.count()
     movie_count = 0
     tv_show_count = 0
     active_sessions_count = 0
+    recommendations = []
 
     if plex:
         try:
@@ -61,7 +65,8 @@ def dashboard():
             active_sessions_count = len(plex.sessions())
         except Exception:
             pass
-            
+        
+
     return render_template('dashboard.html', 
                            title="Admin Dashboard",
                            user_count=user_count,
@@ -124,11 +129,13 @@ def logout():
 @app.route('/admin/users')
 @login_required
 def user_management():
+    # Security check: only allow 'admin' user to see this page
     user = User.query.get(session['user_id'])
     if user and user.username == 'admin':
         users = User.query.all()
         return render_template('user_management.html', users=users, title="User Management")
     else:
+        # Redirect non-admin users to their own profile page for security
         flash("You do not have permission to view this page.", "danger")
         return redirect(url_for('profile'))
 
@@ -195,10 +202,15 @@ def profile_delete():
 def list_all_content():
     """
     Returns a list of all content (movies and TV shows) from Plex,
-    with options for filtering and sorting.
+    with options for filtering, sorting, and pagination.
     """
     plex = get_user_plex()
     if not plex:
+        # Return a JSON error if a client-side request fails
+        if 'page' in request.args:
+            return jsonify({"error": "Plex server not connected."}), 500
+        # For a regular page load, render the initial page and pass a flash message
+        flash("Plex server not connected.", "danger")
         return render_template('content.html', content_list=[], title="All Content")
 
     # Get filter and sort parameters from URL query string
@@ -245,11 +257,26 @@ def list_all_content():
         # Sort content
         if sort_by in ['title', 'year', 'content_rating']:
             reverse = (sort_order == 'desc')
-            filtered_content.sort(key=lambda x: x.get(sort_by) if x.get(sort_by) is not None else 0, reverse=reverse)
+            # The key handles None/non-numeric values gracefully
+            if sort_by == 'title' or sort_by == 'content_rating':
+                filtered_content.sort(key=lambda x: str(x.get(sort_by) or '').lower(), reverse=reverse)
+            elif sort_by == 'year':
+                filtered_content.sort(key=lambda x: int(x.get(sort_by) or 0) if x.get(sort_by) is not None else 0, reverse=reverse)
         
-        # Pass filter and sort parameters back to the template to maintain state
+        # Paginate content for infinite scroll
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 50))
+        start_index = (page - 1) * limit
+        end_index = start_index + limit
+        paginated_content = filtered_content[start_index:end_index]
+
+        # Check if this is a request from the JavaScript client
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'page' in request.args:
+             return jsonify(paginated_content)
+        
+        # For a regular page load, render the initial content and pass filter/sort params
         return render_template('content.html',
-                               content_list=filtered_content,
+                               content_list=paginated_content,
                                genres=all_genres,
                                years=all_years,
                                ratings=all_ratings,
@@ -265,31 +292,42 @@ def list_all_content():
         print(f"Error fetching content: {e}", file=sys.stderr)
         return render_template('content.html', content_list=[], title="All Content")
 
-@app.route('/movies/search', methods=['GET', 'POST'])
+@app.route('/movies/search', methods=['GET']) # Changed to GET to match frontend fetch
 @login_required
 def search_movies():
     plex = get_user_plex()
     if not plex:
+        # Return a JSON error if a client-side request fails
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"error": "Plex server not connected."}), 500
+        # For a regular page load, render the initial HTML page
+        flash("Plex server not connected.", "danger")
         return render_template('movie_search.html', search_results=[], search_term="", title="Search Movies")
-
+    
     search_results = []
-    search_term = ""
-    if request.method == 'POST':
-        search_term = request.form.get('search_term', '').strip()
-        if search_term:
-            try:
-                movies = plex.library.section('Movies').search(search_term)
-                for movie in movies:
-                    search_results.append({'title': movie.title, 'year': movie.year, 'summary': movie.summary})
-                search_results.sort(key=lambda x: x['title'].lower())
-                if not search_results:
-                    flash(f"No movies found matching '{search_term}'.", "info")
-            except Exception as e:
-                flash(f"Error searching for movies: {e}", "danger")
-                print(f"Error searching for movies: {e}", file=sys.stderr)
-        else:
-            flash("Please enter a search term.", "warning")
+    # Get search term from URL query string for GET request
+    search_term = request.args.get('search_term', '').strip()
+    
+    if search_term:
+        try:
+            movies_section = plex.library.section('Movies')
+            movies = movies_section.search(search_term)
+            for movie in movies:
+                search_results.append({'title': movie.title, 'year': movie.year, 'summary': movie.summary})
+            search_results.sort(key=lambda x: str(x['title']).lower())
+            if not search_results:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({"error": f"No movies found matching '{search_term}'."}), 404
+                flash(f"No movies found matching '{search_term}'.", "info")
+        except Exception as e:
+            flash(f"Error searching for movies: {e}", "danger")
+            print(f"Error searching for movies: {e}", file=sys.stderr)
 
+    # If it's a JSON request (from JS), return JSON data
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify(search_results)
+    
+    # For a regular page load, render the initial template
     return render_template('movie_search.html', search_results=search_results, search_term=search_term, title="Search Movies")
 
 @app.route('/now_playing')
