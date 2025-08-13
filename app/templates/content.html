@@ -2,14 +2,56 @@
 {% block content %}
 <div class="bg-white p-8 rounded-lg shadow-md">
     <h2 class="text-3xl font-bold mb-6 text-center">All Plex Content</h2>
+
+    <!-- Filtering and Sorting Controls -->
+    <div class="mb-8 flex flex-col space-y-4 md:flex-row md:space-x-6 md:space-y-0 items-center justify-between">
+        <!-- Filter Form -->
+        <form method="GET" action="{{ url_for('list_all_content') }}" class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 w-full">
+            <select name="genre" class="w-full md:w-auto px-4 py-2 border rounded-md">
+                <option value="">All Genres</option>
+                {% for genre in genres %}
+                    <option value="{{ genre }}" {% if selected_genre == genre %}selected{% endif %}>{{ genre }}</option>
+                {% endfor %}
+            </select>
+            <select name="year" class="w-full md:w-auto px-4 py-2 border rounded-md">
+                <option value="">All Years</option>
+                {% for year in years %}
+                    <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>{{ year }}</option>
+                {% endfor %}
+            </select>
+            <select name="rating" class="w-full md:w-auto px-4 py-2 border rounded-md">
+                <option value="">All Ratings</option>
+                {% for rating in ratings %}
+                    <option value="{{ rating }}" {% if selected_rating == rating %}selected{% endif %}>{{ rating }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="w-full md:w-auto px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">Filter</button>
+        </form>
+    </div>
+
     {% if content_list %}
     <div class="overflow-x-auto">
         <table id="content-table" class="min-w-full bg-white border border-gray-200 rounded-lg">
             <thead>
                 <tr class="bg-gray-100 text-left text-gray-600 uppercase text-sm leading-normal">
-                    <th class="py-3 px-6 border-b border-gray-200">Type</th>
-                    <th class="py-3 px-6 border-b border-gray-200">Title</th>
-                    <th class="py-3 px-6 border-b border-gray-200">Year</th>
+                    <th class="py-3 px-6 border-b border-gray-200 cursor-pointer" onclick="sortTable('type')">
+                        Type
+                        {% if sort_by == 'type' %}
+                            {% if sort_order == 'asc' %}▲{% else %}▼{% endif %}
+                        {% endif %}
+                    </th>
+                    <th class="py-3 px-6 border-b border-gray-200 cursor-pointer" onclick="sortTable('title')">
+                        Title
+                        {% if sort_by == 'title' %}
+                            {% if sort_order == 'asc' %}▲{% else %}▼{% endif %}
+                        {% endif %}
+                    </th>
+                    <th class="py-3 px-6 border-b border-gray-200 cursor-pointer" onclick="sortTable('year')">
+                        Year
+                        {% if sort_by == 'year' %}
+                            {% if sort_order == 'asc' %}▲{% else %}▼{% endif %}
+                        {% endif %}
+                    </th>
                     <th class="py-3 px-6 border-b border-gray-200">Summary</th>
                 </tr>
             </thead>
@@ -29,4 +71,24 @@
     <p class="text-center text-gray-600">No content found or an error occurred.</p>
     {% endif %}
 </div>
+
+<script>
+    function sortTable(sortBy) {
+        const url = new URL(window.location.href);
+        let sortOrder = url.searchParams.get('sort_order');
+        let currentSortBy = url.searchParams.get('sort_by');
+
+        if (currentSortBy === sortBy) {
+            // Toggle sort order if clicking the same column header
+            sortOrder = (sortOrder === 'asc') ? 'desc' : 'asc';
+        } else {
+            // Default to ascending if clicking a new column header
+            sortOrder = 'asc';
+        }
+
+        url.searchParams.set('sort_by', sortBy);
+        url.searchParams.set('sort_order', sortOrder);
+        window.location.href = url.href;
+    }
+</script>
 {% endblock %}

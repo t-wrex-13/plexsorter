@@ -1,7 +1,29 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="bg-white p-8 rounded-lg shadow-md text-center">
-    <h2 class="text-3xl font-bold mb-4">Welcome, Admin!</h2>
-    <p class="text-lg text-gray-700">Use the navigation bar to explore Plex content and activity.</p>
+<div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md">
+    <!-- Updated the text color for light mode to a darker gray for better readability -->
+    <h2 class="text-3xl font-bold mb-8 text-gray-700 dark:text-gray-100" style="display:flex;justify-content:center;align-items:center;">Plex Admin Dashboard</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Card 1: Total Users -->
+        <div class="bg-gray-100 dark:bg-gray-900 p-6 rounded-lg shadow-md text-center">
+            <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ user_count }}</p>
+            <p class="text-gray-600 dark:text-gray-400 mt-2">Total Users</p>
+        </div>
+        <!-- Card 2: Total Movies -->
+        <div class="bg-gray-100 dark:bg-gray-900 p-6 rounded-lg shadow-md text-center">
+            <p class="text-2xl font-bold text-green-600 dark:text-green-400">{{ movie_count }}</p>
+            <p class="text-gray-600 dark:text-gray-400 mt-2">Total Movies</p>
+        </div>
+        <!-- Card 3: Total TV Shows -->
+        <div class="bg-gray-100 dark:bg-gray-900 p-6 rounded-lg shadow-md text-center">
+            <p class="text-2xl font-bold text-teal-600 dark:text-teal-400">{{ tv_show_count }}</p>
+            <p class="text-gray-600 dark:text-gray-400 mt-2">Total TV Shows</p>
+        </div>
+        <!-- Card 4: Active Sessions -->
+        <div class="bg-gray-100 dark:bg-gray-900 p-6 rounded-lg shadow-md text-center">
+            <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ active_sessions_count }}</p>
+            <p class="text-gray-600 dark:text-gray-400 mt-2">Active Sessions</p>
+        </div>
+    </div>
 </div>
 {% endblock %}

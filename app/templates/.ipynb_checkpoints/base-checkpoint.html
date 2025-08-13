@@ -64,6 +64,12 @@
         html.dark .flash-message.danger { background-color: #7f1d1d; color: #fecaca; border: 1px solid #ef4444; }
         html.dark .flash-message.warning { background-color: #78350f; color: #fde68a; border: 1px solid #fbbf24; }
         html.dark .flash-message.info { background-color: #1e3a8a; color: #bfdbfe; border: 1px solid #60a5fa; }
+        
+        html.dark select {
+            background-color: #1e293b;
+            color: #f1f5f9;
+            border-color: #475569;
+        }
 
         /* Tooltip for hover info on content rows */
         .tooltip {
@@ -100,6 +106,7 @@
                     </svg>
                 </button>
                 {% if session.logged_in %}
+                    <a href="{{ url_for('dashboard') }}" class="text-gray-300 hover:text-white">Dashboard</a>
                     <a href="{{ url_for('list_all_content') }}" class="text-gray-300 hover:text-white">All Content</a>
                     <a href="{{ url_for('search_movies') }}" class="text-gray-300 hover:text-white">Search Movies</a>
                     <a href="{{ url_for('now_playing') }}" class="text-gray-300 hover:text-white">Now Playing</a>
@@ -131,6 +138,7 @@
         <div id="mobile-menu" class="hidden md:hidden mt-4">
             <div class="flex flex-col space-y-2">
                 {% if session.logged_in %}
+                    <a href="{{ url_for('dashboard') }}" class="text-gray-300 hover:text-white">Dashboard</a>
                     <a href="{{ url_for('list_all_content') }}" class="text-gray-300 hover:text-white py-2 px-3">All Content</a>
                     <a href="{{ url_for('search_movies') }}" class="text-gray-300 hover:text-white py-2 px-3">Search Movies</a>
                     <a href="{{ url_for('now_playing') }}" class="text-gray-300 hover:text-white py-2 px-3">Now Playing</a>
@@ -170,7 +178,7 @@
     </div>
 
     <footer class="bg-slate-800 dark:bg-gray-900 p-4 text-center text-gray-400 mt-8">
-        <p>&copy; 2024 Plex Admin App</p>
+        <p>&copy; 2025 t-wrex-13</p>
     </footer>
 
     <div id="tooltip" class="tooltip"></div> <!-- Tooltip element -->

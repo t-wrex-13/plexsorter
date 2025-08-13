@@ -27,6 +27,16 @@
             </tbody>
         </table>
     </div>
+    <div class="mt-8 text-center flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0 md:space-x-4">
+        <a href="{{ url_for('profile_edit') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+            Edit Profile
+        </a>
+        <form action="{{ url_for('profile_delete') }}" method="post" onsubmit="return confirm('Are you sure you want to delete your account? This action cannot be undone.');">
+            <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                Delete Account
+            </button>
+        </form>
+    </div>
     {% else %}
     <p class="text-center text-gray-600">User not found or not logged in.</p>
     {% endif %}

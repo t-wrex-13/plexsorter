@@ -42,7 +42,32 @@ def get_user_plex():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('dashboard.html', title="Admin Dashboard")
+    plex = get_user_plex()
+    user_count = User.query.count()
+    movie_count = 0
+    tv_show_count = 0
+    active_sessions_count = 0
+
+    if plex:
+        try:
+            movie_count = len(plex.library.section('Movies').all())
+        except Exception:
+            pass
+        try:
+            tv_show_count = len(plex.library.section('TV Shows').all())
+        except Exception:
+            pass
+        try:
+            active_sessions_count = len(plex.sessions())
+        except Exception:
+            pass
+            
+    return render_template('dashboard.html', 
+                           title="Admin Dashboard",
+                           user_count=user_count,
+                           movie_count=movie_count,
+                           tv_show_count=tv_show_count,
+                           active_sessions_count=active_sessions_count)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -99,13 +124,11 @@ def logout():
 @app.route('/admin/users')
 @login_required
 def user_management():
-    # Security check: only allow 'admin' user to see this page
     user = User.query.get(session['user_id'])
     if user and user.username == 'admin':
         users = User.query.all()
         return render_template('user_management.html', users=users, title="User Management")
     else:
-        # Redirect non-admin users to their own profile page for security
         flash("You do not have permission to view this page.", "danger")
         return redirect(url_for('profile'))
 
@@ -115,31 +138,132 @@ def profile():
     user = User.query.get(session['user_id'])
     return render_template('profile.html', user=user, title="My Profile")
 
+@app.route('/profile/edit', methods=['GET', 'POST'])
+@login_required
+def profile_edit():
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash("User not found.", "danger")
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        # Handle password change
+        new_password = request.form.get('new_password')
+        if new_password:
+            user.set_password(new_password)
+
+        # Handle Plex URL and Token updates
+        user.plex_baseurl = request.form.get('plex_baseurl')
+        user.plex_token = request.form.get('plex_token')
+
+        db.session.commit()
+        flash("Profile updated successfully!", "success")
+        return redirect(url_for('profile'))
+
+    return render_template('profile_edit.html', user=user, title="Edit Profile")
+
+@app.route('/profile/delete', methods=['POST'])
+@login_required
+def profile_delete():
+    user_id_to_delete = session.get('user_id')
+    if not user_id_to_delete:
+        flash("Could not find user to delete.", "danger")
+        return redirect(url_for('dashboard'))
+    
+    user_to_delete = User.query.get(user_id_to_delete)
+    if user_to_delete:
+        try:
+            db.session.delete(user_to_delete)
+            db.session.commit()
+            
+            # Log the user out after successful deletion
+            session.pop('logged_in', None)
+            session.pop('user_id', None)
+            flash("Your account has been successfully deleted.", "success")
+            return redirect(url_for('login'))
+
+        except Exception as e:
+            db.session.rollback() # Rollback on error
+            flash(f"An error occurred during account deletion: {e}", "danger")
+            return redirect(url_for('profile'))
+            
+    flash("Account not found.", "danger")
+    return redirect(url_for('dashboard'))
+
 @app.route('/content')
 @login_required
 def list_all_content():
+    """
+    Returns a list of all content (movies and TV shows) from Plex,
+    with options for filtering and sorting.
+    """
     plex = get_user_plex()
     if not plex:
         return render_template('content.html', content_list=[], title="All Content")
 
+    # Get filter and sort parameters from URL query string
+    genre_filter = request.args.get('genre')
+    year_filter = request.args.get('year')
+    rating_filter = request.args.get('rating')
+    sort_by = request.args.get('sort_by', 'title')
+    sort_order = request.args.get('sort_order', 'asc')
+
     all_content = []
     try:
-        movies = plex.library.section('Movies').all()
-        for movie in movies:
-            all_content.append({'type': 'Movie', 'title': movie.title, 'year': movie.year, 'summary': movie.summary})
+        movies_section = plex.library.section('Movies')
+        tv_shows_section = plex.library.section('TV Shows')
+        all_items = movies_section.all() + tv_shows_section.all()
 
-        tv_shows = plex.library.section('TV Shows').all()
-        for show in tv_shows:
-            all_content.append({'type': 'TV Show', 'title': show.title, 'year': show.year, 'summary': show.summary})
+        # Get unique genres, years, and ratings for filter dropdowns
+        all_genres = sorted(list(set(g.tag for item in all_items for g in item.genres)))
+        all_years = sorted(list(set(item.year for item in all_items if item.year)))
+        all_ratings = sorted(list(set(item.contentRating for item in all_items if item.contentRating)))
 
-        all_content.sort(key=lambda x: x['title'].lower())
+        # Filter content
+        filtered_content = []
+        for item in all_items:
+            # Check genre filter
+            if genre_filter and (not hasattr(item, 'genres') or genre_filter not in [g.tag for g in item.genres]):
+                continue
+            # Check year filter
+            if year_filter and (not hasattr(item, 'year') or str(item.year) != year_filter):
+                continue
+            # Check rating filter
+            if rating_filter and (not hasattr(item, 'contentRating') or item.contentRating != rating_filter):
+                continue
+
+            # Add to filtered list
+            filtered_content.append({
+                'type': item.type,
+                'title': item.title,
+                'year': item.year,
+                'summary': item.summary,
+                'genre_tags': [g.tag for g in getattr(item, 'genres', [])],
+                'content_rating': getattr(item, 'contentRating', 'N/A')
+            })
+
+        # Sort content
+        if sort_by in ['title', 'year', 'content_rating']:
+            reverse = (sort_order == 'desc')
+            filtered_content.sort(key=lambda x: x.get(sort_by) if x.get(sort_by) is not None else 0, reverse=reverse)
+        
+        # Pass filter and sort parameters back to the template to maintain state
+        return render_template('content.html',
+                               content_list=filtered_content,
+                               genres=all_genres,
+                               years=all_years,
+                               ratings=all_ratings,
+                               sort_by=sort_by,
+                               sort_order=sort_order,
+                               selected_genre=genre_filter,
+                               selected_year=year_filter,
+                               selected_rating=rating_filter,
+                               title="All Content")
 
     except Exception as e:
         flash(f"Error fetching content: {e}", "danger")
         print(f"Error fetching content: {e}", file=sys.stderr)
-        all_content = []
-
-    return render_template('content.html', content_list=all_content, title="All Content")
+        return render_template('content.html', content_list=[], title="All Content")
 
 @app.route('/movies/search', methods=['GET', 'POST'])
 @login_required
@@ -175,6 +299,16 @@ def now_playing():
     if not plex:
         return render_template('now_playing.html', active_sessions=[], title="Now Playing")
 
+    # This route is now a simple HTML renderer for the real-time update page.
+    return render_template('now_playing.html', title="Now Playing")
+
+@app.route('/api/now_playing_data')
+@login_required
+def get_now_playing_data():
+    plex = get_user_plex()
+    if not plex:
+        return jsonify({"error": "Plex server not connected."}), 500
+
     active_sessions = []
     try:
         sessions = plex.sessions()
@@ -200,14 +334,11 @@ def now_playing():
                 'state': s.state if hasattr(s, 'state') else 'N/A'
             })
         
-        if not active_sessions:
-            flash("No active sessions found.", "info")
-
     except Exception as e:
-        flash(f"Error fetching active sessions: {e}", "danger")
         print(f"Error fetching active sessions: {e}", file=sys.stderr)
+        return jsonify({"error": f"Failed to fetch active sessions: {e}"}), 500
 
-    return render_template('now_playing.html', active_sessions=active_sessions, title="Now Playing")
+    return jsonify(active_sessions)
 
 # --- D3.js Visualization Routes ---
 

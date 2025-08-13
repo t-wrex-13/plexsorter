@@ -2,9 +2,31 @@
 {% block content %}
 <div class="bg-white p-8 rounded-lg shadow-md">
     <h2 class="text-3xl font-bold mb-6 text-center">Currently Watching</h2>
-    {% if active_sessions %}
+    
+    <!-- New: Refresh Rate Dropdown -->
+    <div class="mb-4 flex items-center justify-center space-x-2">
+        <label for="refresh-rate-select" class="text-gray-700">Refresh every:</label>
+        <select id="refresh-rate-select" class="px-3 py-1 border rounded-md text-gray-700">
+            <option value="30000">30 seconds</option>
+            <option value="60000">60 seconds</option>
+            <option value="120000">120 seconds</option>
+        </select>
+    </div>
+
+    <div id="loading-indicator" class="text-center text-gray-600">
+        <p>Loading active sessions...</p>
+        <svg class="animate-spin h-8 w-8 text-gray-400 mx-auto mt-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l1-2.647z"></path>
+        </svg>
+    </div>
+
+    <div id="no-sessions-message" class="text-center text-gray-600 hidden">
+        <p>No one is currently watching content.</p>
+    </div>
+
     <div class="overflow-x-auto">
-        <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+        <table class="min-w-full bg-white border border-gray-200 rounded-lg hidden" id="now-playing-table">
             <thead>
                 <tr class="bg-gray-100 text-left text-gray-600 uppercase text-sm leading-normal">
                     <th class="py-3 px-6 border-b border-gray-200">User</th>
@@ -15,22 +37,88 @@
                     <th class="py-3 px-6 border-b border-gray-200">State</th>
                 </tr>
             </thead>
-            <tbody class="text-gray-700 text-sm">
-                {% for session in active_sessions %}
-                <tr class="border-b border-gray-200 hover:bg-gray-50">
-                    <td class="py-3 px-6 font-medium">{{ session.user }}</td>
-                    <td class="py-3 px-6">{{ session.content }}</td>
-                    <td class="py-3 px-6">{{ session.type }}</td>
-                    <td class="py-3 px-6">{{ session.player }}</td>
-                    <td class="py-3 px-6">{{ session.progress }}</td>
-                    <td class="py-3 px-6">{{ session.state }}</td>
-                </tr>
-                {% endfor %}
+            <tbody class="text-gray-700 text-sm" id="now-playing-table-body">
+                <!-- Rows will be dynamically inserted by JavaScript -->
             </tbody>
         </table>
     </div>
-    {% else %}
-    <p class="text-center text-gray-600">No active sessions found.</p>
-    {% endif %}
 </div>
+
+<script>
+    const tableBody = document.getElementById('now-playing-table-body');
+    const table = document.getElementById('now-playing-table');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const noSessionsMessage = document.getElementById('no-sessions-message');
+    const refreshRateSelect = document.getElementById('refresh-rate-select'); // New element reference
+    let intervalId; // Global variable to store the interval ID
+
+    // Function to fetch and render active sessions
+    async function fetchAndRenderSessions() {
+        // Show loading indicator and hide table/message
+        loadingIndicator.classList.remove('hidden');
+        table.classList.add('hidden');
+        noSessionsMessage.classList.add('hidden');
+
+        try {
+            const response = await fetch("{{ url_for('get_now_playing_data') }}");
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            const sessions = await response.json();
+
+            tableBody.innerHTML = ''; // Clear existing table rows
+
+            if (sessions.length === 0) {
+                noSessionsMessage.classList.remove('hidden');
+            } else {
+                sessions.forEach(s => {
+                    const row = document.createElement('tr');
+                    row.className = 'border-b border-gray-200 hover:bg-gray-50';
+                    row.innerHTML = `
+                        <td class="py-3 px-6 font-medium">${s.user}</td>
+                        <td class="py-3 px-6">${s.content}</td>
+                        <td class="py-3 px-6">${s.type}</td>
+                        <td class="py-3 px-6">${s.player}</td>
+                        <td class="py-3 px-6">
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${s.progress};"></div>
+                            </div>
+                            <small class="text-gray-500">${s.progress}</small>
+                        </td>
+                        <td class="py-3 px-6">${s.state}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+                table.classList.remove('hidden');
+            }
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            noSessionsMessage.textContent = 'Failed to load sessions. Please check your Plex connection.';
+            noSessionsMessage.classList.remove('hidden');
+        } finally {
+            loadingIndicator.classList.add('hidden');
+        }
+    }
+
+    // Function to manage the refresh interval
+    function startRefreshInterval() {
+        if (intervalId) {
+            clearInterval(intervalId);
+        }
+        const refreshRate = parseInt(refreshRateSelect.value, 10);
+        intervalId = setInterval(fetchAndRenderSessions, refreshRate);
+        console.log(`Auto-refresh set to every ${refreshRate / 1000} seconds.`);
+    }
+
+    // Initial fetch on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchAndRenderSessions();
+        startRefreshInterval();
+    });
+
+    // Event listener to change refresh rate
+    refreshRateSelect.addEventListener('change', () => {
+        startRefreshInterval();
+    });
+</script>
 {% endblock %}
